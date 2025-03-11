@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         인스티즈 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      0.9
 // @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 차단하는 스크립트 (#ingreen 제외)
 // @author       AI Assistant
 // @match        https://www.instiz.net/*
@@ -28,6 +28,13 @@
         div[id*="ad-container"],
         
         /* 더보기 누른 후 나타나는 광고 공간 제거 - 모든 패턴 포함 */
+        tr > td[style*="padding:0"][style*="line-height:0"],
+        tr > td[style*="padding: 0"][style*="line-height: 0"],
+        tr > td[style*="padding:0;line-height:0"],
+        tr:has(td[style*="padding:0"][style*="line-height:0"]),
+        tr:has(td[style*="padding: 0px"][style*="line-height: 0"]),
+        tr:has(div[style*="width:100%"][style*="height:100px"][style*="padding:20px 0"]),
+        tr:has(ins.adsbygoogle),
         tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"],
         tr[style*="height: auto"][style*="padding: 0px"],
         td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"],
@@ -142,6 +149,9 @@
             'div[id*="ad-container"]',
             
             // 더보기 누른 후 나타나는 광고 공간 - 모든 패턴 포함
+            'tr > td[style*="padding:0"][style*="line-height:0"]',
+            'tr > td[style*="padding: 0"][style*="line-height: 0"]',
+            'tr > td[style*="padding:0;line-height:0"]',
             'tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"]',
             'tr[style*="height: auto"][style*="padding: 0px"]',
             'td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"]',
@@ -207,7 +217,9 @@
                         element.style.setProperty('overflow', 'hidden', 'important');
                         
                         // 가능하면 부모 테이블 행에서 완전히 제거
-                        if (selector.includes('td[style') || selector.includes('div[style*="width:100%"][style*="height:100px"]')) {
+                        if (selector.includes('td[style') || 
+                            selector.includes('div[style*="width:100%"][style*="height:100px"]') ||
+                            element.tagName === 'TD') {
                             let parent = element.parentElement;
                             let depth = 0;
                             
@@ -300,10 +312,12 @@
             });
             
             // 4. 더보기 버튼 누른 후 나타나는 광고 영역 제거 (더 정확하고 광범위하게)
+            // (1) 모든 td 스타일 패턴 검색
             const adRows = document.querySelectorAll(
-                'td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"], ' +
-                'td[style*="padding:0;line-height:0;text-align:center"], ' +
-                'td[style*="padding: 0px"][style*="line-height: 0"]'
+                'td[style*="padding:0"][style*="line-height:0"], ' +
+                'td[style*="padding: 0"][style*="line-height: 0"], ' +
+                'td[style*="padding:0;line-height:0"], ' +
+                'td[style*="text-align:center"][style*="padding: 0px"]'
             );
             
             adRows.forEach(row => {
@@ -317,6 +331,39 @@
                     try {
                         parentRow.parentNode.removeChild(parentRow);
                     } catch (e) {}
+                }
+            });
+            
+            // (2) adsbygoogle 요소가 포함된 tr 찾아 제거
+            const adsByGoogleRows = document.querySelectorAll('tr:has(ins.adsbygoogle)');
+            adsByGoogleRows.forEach(row => {
+                row.style.setProperty('display', 'none', 'important');
+                row.style.setProperty('height', '0', 'important');
+                row.style.setProperty('visibility', 'hidden', 'important');
+                try {
+                    row.parentNode.removeChild(row);
+                } catch (e) {}
+            });
+            
+            // (3) 특정 div 스타일 패턴의 부모 tr 찾아 제거
+            const divAdContainers = document.querySelectorAll('div[style*="width:100%"][style*="height:100px"]');
+            divAdContainers.forEach(div => {
+                let parent = div.parentElement;
+                let depth = 0;
+                
+                // 최대 3단계 부모까지 확인하여 tr 찾기
+                while (parent && depth < 3) {
+                    if (parent.tagName === 'TR') {
+                        parent.style.setProperty('display', 'none', 'important');
+                        parent.style.setProperty('height', '0', 'important');
+                        parent.style.setProperty('visibility', 'hidden', 'important');
+                        try {
+                            parent.parentNode.removeChild(parent);
+                        } catch (e) {}
+                        break;
+                    }
+                    parent = parent.parentElement;
+                    depth++;
                 }
             });
             
@@ -371,11 +418,33 @@
                             }
                             
                             // 더보기 후 나타나는 광고 행 확인
-                            if (node.tagName === 'TR' && 
-                                node.style && 
-                                node.style.height && 
-                                node.style.height.includes('auto')) {
-                                shouldHide = true;
+                            if (node.tagName === 'TR') {
+                                // TR 자체 스타일 확인
+                                if (node.style && 
+                                    node.style.height && 
+                                    node.style.height.includes('auto')) {
+                                    shouldHide = true;
+                                }
+                                
+                                // TR 내부 TD 확인
+                                const tds = node.querySelectorAll('td');
+                                tds.forEach(td => {
+                                    if (td.style && 
+                                        ((td.style.padding && td.style.padding.includes('0')) || 
+                                         (td.style.lineHeight && td.style.lineHeight.includes('0')))) {
+                                        shouldHide = true;
+                                    }
+                                });
+                                
+                                // TR 내부에 adsbygoogle 있는지 확인
+                                if (node.querySelector('ins.adsbygoogle')) {
+                                    shouldHide = true;
+                                }
+                                
+                                // TR 내부에 특정 div 패턴 있는지 확인
+                                if (node.querySelector('div[style*="width:100%"][style*="height:100px"]')) {
+                                    shouldHide = true;
+                                }
                             }
                             
                             // TD 광고 패턴 확인
@@ -426,6 +495,18 @@
         }
     }
     
+    // 모든 클릭 이벤트를 감지하여 광고를 숨기는 함수
+    function setupClickObserver() {
+        document.addEventListener('click', function(e) {
+            // 광고 제거 시간차를 두고 반복 실행
+            setTimeout(hideAds, 100);  // 즉시
+            setTimeout(hideAds, 300);  // 0.3초 후
+            setTimeout(hideAds, 500);  // 0.5초 후
+            setTimeout(hideAds, 1000); // 1초 후
+            setTimeout(hideAds, 2000); // 2초 후
+        }, true);
+    }
+    
     // 스크립트 초기화 함수
     function init() {
         // 광고 숨기기
@@ -433,14 +514,21 @@
             document.addEventListener('DOMContentLoaded', () => {
                 hideAds();
                 setupObserver();
+                setupClickObserver();
             });
         } else {
             hideAds();
             setupObserver();
+            setupClickObserver();
         }
         
         // 페이지가 완전히 로드된 후 한 번 더 실행 (지연 로드된 광고 대응)
-        window.addEventListener('load', hideAds);
+        window.addEventListener('load', () => {
+            hideAds();
+            // 추가로 여러 번 반복 실행
+            setTimeout(hideAds, 500);
+            setTimeout(hideAds, 1000);
+        });
         
         // 1초 후 한 번 더 실행 (늦게 로드되는 광고 대응)
         setTimeout(hideAds, 1000);
@@ -448,10 +536,19 @@
         // 3초 후에도 한 번 더 실행 (매우 늦게 로드되는 광고 대응)
         setTimeout(hideAds, 3000);
         
+        // 5초 후에도 한 번 더 실행
+        setTimeout(hideAds, 5000);
+        
+        // 10초 후에도 한 번 더 실행 (매우 늦게 로드되는 광고 대응)
+        setTimeout(hideAds, 10000);
+        
         // 페이지 스크롤 시에도 광고 숨기기 실행 (스크롤 시 동적으로 로드되는 광고 대응)
         window.addEventListener('scroll', function() {
             setTimeout(hideAds, 100);
         }, { passive: true });
+        
+        // 정기적으로 광고 제거 함수 실행 (30초 간격)
+        setInterval(hideAds, 30000);
     }
     
     // 스크립트 즉시 실행
