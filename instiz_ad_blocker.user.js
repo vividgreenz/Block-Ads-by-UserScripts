@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         인스티즈 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 차단하는 스크립트 (#ingreen 제외)
 // @author       AI Assistant
 // @match        https://www.instiz.net/*
@@ -27,9 +27,14 @@
         img[src*="ad.doubleclick"],
         div[id*="ad-container"],
         
-        /* 더보기 누른 후 나타나는 광고 공간 제거 */
+        /* 더보기 누른 후 나타나는 광고 공간 제거 - 모든 패턴 포함 */
         tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"],
         tr[style*="height: auto"][style*="padding: 0px"],
+        td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"],
+        td[style*="padding:0;line-height:0;text-align:center"],
+        td[style*="padding: 0px"][style*="line-height: 0"],
+        div[style*="width:100%"][style*="height:100px"][style*="padding:20px 0"],
+        div[style*="width: 100%"][style*="height: 100px"][style*="padding: 20px 0px"],
         
         /* 사용자가 제공한 특정 공지 형태의 광고 */
         div.notice,
@@ -65,7 +70,10 @@
         .content_sub:not(#ingreen .content_sub),
         .topbtn2,
         .topbtn1,
-        #swiper-container-fantime-latest
+        #swiper-container-fantime-latest,
+        
+        /* 연관 메뉴 아래 버튼들 (select 제외) */
+        .subcategory > span.button
     {
         display: none !important;
         height: 0 !important;
@@ -133,9 +141,14 @@
             'iframe[src*="iframe_fit.htm"]',
             'div[id*="ad-container"]',
             
-            // 더보기 누른 후 나타나는 광고 공간
+            // 더보기 누른 후 나타나는 광고 공간 - 모든 패턴 포함
             'tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"]',
             'tr[style*="height: auto"][style*="padding: 0px"]',
+            'td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"]',
+            'td[style*="padding:0;line-height:0;text-align:center"]',
+            'td[style*="padding: 0px"][style*="line-height: 0"]',
+            'div[style*="width:100%"][style*="height:100px"][style*="padding:20px 0"]',
+            'div[style*="width: 100%"][style*="height: 100px"][style*="padding: 20px 0px"]',
             
             // 컨테이너 및 공간
             '.view_top',
@@ -159,7 +172,10 @@
             '.content_sub:not(#ingreen .content_sub)',
             '.topbtn2',
             '.topbtn1',
-            '#swiper-container-fantime-latest'
+            '#swiper-container-fantime-latest',
+            
+            // 연관 메뉴 아래 버튼들 (select 제외)
+            '.subcategory > span.button'
         ];
         
         // 각 선택자에 해당하는 모든 요소와 컨테이너 숨기기
@@ -189,6 +205,28 @@
                         element.style.setProperty('max-width', '0', 'important');
                         element.style.setProperty('max-height', '0', 'important');
                         element.style.setProperty('overflow', 'hidden', 'important');
+                        
+                        // 가능하면 부모 테이블 행에서 완전히 제거
+                        if (selector.includes('td[style') || selector.includes('div[style*="width:100%"][style*="height:100px"]')) {
+                            let parent = element.parentElement;
+                            let depth = 0;
+                            
+                            // 최대 3단계 부모까지 확인하여 tr 찾기
+                            while (parent && depth < 3) {
+                                if (parent.tagName === 'TR') {
+                                    try {
+                                        parent.style.setProperty('display', 'none', 'important');
+                                        parent.style.setProperty('height', '0', 'important');
+                                        parent.style.setProperty('min-height', '0', 'important');
+                                        parent.style.setProperty('visibility', 'hidden', 'important');
+                                        parent.parentNode.removeChild(parent);
+                                    } catch (e) {}
+                                    break;
+                                }
+                                parent = parent.parentElement;
+                                depth++;
+                            }
+                        }
                     }
                 });
             } catch (e) {
@@ -261,23 +299,35 @@
                 }
             });
             
-            // 4. 더보기 버튼 누른 후 나타나는 광고 영역 제거
-            const adRows = document.querySelectorAll('tr[style*="height: auto"] > td[style*="padding: 0px"]');
+            // 4. 더보기 버튼 누른 후 나타나는 광고 영역 제거 (더 정확하고 광범위하게)
+            const adRows = document.querySelectorAll(
+                'td[style*="padding:0"][style*="line-height:0"][style*="text-align:center"], ' +
+                'td[style*="padding:0;line-height:0;text-align:center"], ' +
+                'td[style*="padding: 0px"][style*="line-height: 0"]'
+            );
+            
             adRows.forEach(row => {
-                const adContainer = row.querySelector('div[style*="padding: 20px 0px"]');
-                if (adContainer) {
-                    // 부모 tr까지 찾아서 제거
-                    let parentRow = row.parentElement;
-                    if (parentRow && parentRow.tagName === 'TR') {
-                        parentRow.style.setProperty('display', 'none', 'important');
-                        parentRow.style.setProperty('height', '0', 'important');
-                        parentRow.style.setProperty('min-height', '0', 'important');
-                        parentRow.style.setProperty('visibility', 'hidden', 'important');
-                        try {
-                            parentRow.parentNode.removeChild(parentRow);
-                        } catch (e) {}
-                    }
+                // 부모 tr까지 찾아서 제거
+                let parentRow = row.parentElement;
+                if (parentRow && parentRow.tagName === 'TR') {
+                    parentRow.style.setProperty('display', 'none', 'important');
+                    parentRow.style.setProperty('height', '0', 'important');
+                    parentRow.style.setProperty('min-height', '0', 'important');
+                    parentRow.style.setProperty('visibility', 'hidden', 'important');
+                    try {
+                        parentRow.parentNode.removeChild(parentRow);
+                    } catch (e) {}
                 }
+            });
+            
+            // 5. 연관 메뉴 아래 버튼들 제거 (select 요소는 유지)
+            const subcategoryButtons = document.querySelectorAll('.subcategory > span.button');
+            subcategoryButtons.forEach(button => {
+                button.style.setProperty('display', 'none', 'important');
+                button.style.setProperty('visibility', 'hidden', 'important');
+                try {
+                    button.parentNode.removeChild(button);
+                } catch (e) {}
             });
         } catch (e) {
             console.log('불필요한 콘텐츠 제거 중 오류 발생:', e.message);
@@ -326,6 +376,24 @@
                                 node.style.height && 
                                 node.style.height.includes('auto')) {
                                 shouldHide = true;
+                            }
+                            
+                            // TD 광고 패턴 확인
+                            if (node.tagName === 'TD' && 
+                                node.style && 
+                                ((node.style.padding && node.style.padding.includes('0')) || 
+                                 (node.style.lineHeight && node.style.lineHeight.includes('0')))) {
+                                shouldHide = true;
+                            }
+                            
+                            // 연관 메뉴 아래 버튼들 확인
+                            if (node.tagName === 'SPAN' && 
+                                node.classList && 
+                                node.classList.contains('button')) {
+                                const parent = node.parentElement;
+                                if (parent && parent.classList && parent.classList.contains('subcategory')) {
+                                    shouldHide = true;
+                                }
                             }
                         }
                     });
@@ -379,6 +447,11 @@
         
         // 3초 후에도 한 번 더 실행 (매우 늦게 로드되는 광고 대응)
         setTimeout(hideAds, 3000);
+        
+        // 페이지 스크롤 시에도 광고 숨기기 실행 (스크롤 시 동적으로 로드되는 광고 대응)
+        window.addEventListener('scroll', function() {
+            setTimeout(hideAds, 100);
+        }, { passive: true });
     }
     
     // 스크립트 즉시 실행
