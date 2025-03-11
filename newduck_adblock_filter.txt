@@ -1,52 +1,28 @@
 ! Title: 뉴덕 광고 차단 필터
-! Description: JavaScript 기반으로 뉴덕 사이트의 광고를 효과적으로 차단
+! Description: 뉴덕 사이트의 광고를 효과적으로 차단하는 필터
 ! Last updated: 2023-05-12
 ! Expires: 1 day
 ! Homepage: https://github.com/vividgreenz/Block-Ads-by-UserScripts
 ! License: MIT
 
-! JavaScript 기반 광고 제거 스크립트
-newduck.net#%#(function() { 
-  const selectors = [
-    '#ad-container', 
-    '.slatc-content > p', 
-    '.slatc-content > aside',
-    '.custom-banner', 
-    '.custom-cul-banner',
-    '[id^="google_ads_"]',
-    '[id^="div-gpt-ad"]',
-    '.adsbygoogle',
-    'ins.adsbygoogle'
-  ];
-  
-  function removeAds() {
-    selectors.forEach(selector => {
-      const elements = document.querySelectorAll(selector);
-      if (elements.length === 0) return;
-      
-      elements.forEach(el => {
-        el.style.display = 'none';
-        el.style.height = '0';
-        el.style.padding = '0';
-        el.style.margin = '0';
-      });
-    });
-    
-    // ID로 직접 접근 (더 확실한 방법)
-    const adContainer = document.getElementById('ad-container');
-    if(adContainer) {
-      adContainer.style.display = 'none';
-      adContainer.style.height = '0';
-    }
-  }
-  
-  // 초기 실행
-  if (document.readyState !== 'loading') {
-    removeAds();
-  } else {
-    document.addEventListener('DOMContentLoaded', removeAds);
-  }
-  
-  // 한 번만 추가 실행 (대부분의 동적 광고는 1초 내에 로드됨)
-  setTimeout(removeAds, 1000);
-})(); 
+! 광고 컨테이너 차단
+newduck.net###ad-container
+newduck.net##.slatc-content > p
+newduck.net##.slatc-content > aside
+newduck.net##.custom-banner
+newduck.net##.custom-cul-banner
+
+! 구글 광고 차단
+newduck.net##[id^="google_ads_"]
+newduck.net##[id^="div-gpt-ad"]
+newduck.net##.adsbygoogle
+newduck.net##ins.adsbygoogle
+
+! 텍스트 기반 광고 차단
+newduck.net##.side__li:has-text(구글광고)
+newduck.net##.side__li:has-text(푸드페스타)
+
+! 프레임 차단
+newduck.net##iframe[src*="doubleclick"]
+newduck.net##iframe[src*="googleads"]
+newduck.net##iframe[src*="advertis"] 
