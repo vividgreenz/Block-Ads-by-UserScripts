@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         뉴덕 광고 차단 스크립트
+// @name         뉴덕 광고 차단 스크립트 (최소 버전)
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  뉴덕 사이트의 광고만 정확히 차단 (콘텐츠는 유지)
+// @version      2.0
+// @description  100% 안전한 광고 차단 - 명확한 구글 광고만 제거
 // @author       AI Assistant
 // @match        https://newduck.net/*
+// @run-at       document-end
 // @grant        none
 // @updateURL    https://github.com/vividgreenz/Block-Ads-by-UserScripts/raw/main/newduck_ad_blocker.user.js
 // @downloadURL  https://github.com/vividgreenz/Block-Ads-by-UserScripts/raw/main/newduck_ad_blocker.user.js
@@ -13,133 +14,109 @@
 (function() {
     'use strict';
     
-    // 안전하게 광고만 차단하는 스크립트
+    // 극히 단순화된 광고 차단 스크립트 - 구글 광고와 푸드페스타 텍스트만 제거
     
-    // 처리된 요소 추적
-    const processedElements = new Set();
+    // 절대적으로 확실한 광고만 처리
+    const EXACT_AD_IDS = [
+        'ad-container',                     // 뉴덕 메인 광고 컨테이너
+        'content_bottom_link'               // 하단 링크 광고
+    ];
     
-    // 명확한 광고 선택자 (절대적으로 확실한 광고만)
-    const adSelectors = [
-        // 구글 광고 관련
-        'ins.adsbygoogle',
-        'div[id^="aswift_"][id$="_host"]',
-        'div[id^="google_ads_iframe_"]',
-        'iframe[id^="google_ads_iframe_"]',
+    const EXACT_AD_CLASSES = [
+        'custom-banner',                    // 배너 광고
+        'custom-cul-banner'                 // 배너 광고 (2)
+    ];
+    
+    // 구글 광고 패턴
+    const GOOGLE_AD_PATTERNS = [
+        'google_ads_iframe_',               // 구글 광고 iframe ID 패턴
+        'aswift_'                           // 구글 애드센스 컨테이너 ID 패턴
+    ];
+    
+    /**
+     * 명확한 광고 요소만 숨기는 안전한 함수
+     */
+    function hideExactAds() {
+        try {
+            // 정확한 ID로 광고 제거
+            EXACT_AD_IDS.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) hideElement(element);
+            });
+            
+            // 정확한 클래스로 광고 제거
+            EXACT_AD_CLASSES.forEach(className => {
+                const elements = document.getElementsByClassName(className);
+                for (let i = 0; i < elements.length; i++) {
+                    hideElement(elements[i]);
+                }
+            });
+            
+            // 구글 광고 iframes 제거
+            const allElements = document.querySelectorAll('*[id]');
+            for (let i = 0; i < allElements.length; i++) {
+                const el = allElements[i];
+                const id = el.id || '';
+                
+                // ID가 구글 광고 패턴과 일치하는지 확인
+                if (GOOGLE_AD_PATTERNS.some(pattern => id.includes(pattern))) {
+                    hideElement(el);
+                }
+            }
+            
+            // 인라인 구글 광고 스크립트 제거
+            document.querySelectorAll('ins.adsbygoogle').forEach(ad => {
+                hideElement(ad);
+            });
+            
+            // 푸드페스타 색상 광고 텍스트 제거
+            document.querySelectorAll('span[style*="color:#ff6699"]').forEach(span => {
+                const paragraph = span.closest('p');
+                if (paragraph) hideElement(paragraph);
+            });
+        } catch (e) {
+            // 오류 처리 - 콘솔에 기록하지 않음
+        }
+    }
+    
+    /**
+     * 요소를 안전하게 숨기는 함수
+     */
+    function hideElement(element) {
+        if (!element || !element.style) return;
         
-        // 뉴덕 특정 광고
-        '#ad-container', 
-        '.custom-banner',
-        'aside.custom-cul-banner',
-        '#content_bottom_link'
-    ];
-    
-    // 색상 기반 광고 (푸드페스타 등) - 이것만 별도로 처리
-    const colorBasedAdSelectors = [
-        'p:has(span[style*="color:#ff6699"])',
-        'p[style*="text-align: center"]:has(span[style*="color:#ff6699"])'
-    ];
-    
-    // 광고 iframe URL 패턴
-    const adIframePatterns = ['googleads', 'doubleclick'];
-    
-    // 절대 건드리면 안 되는 중요 선택자
-    const criticalSelectors = [
-        '.sl-content', '.sl-body', '.board_list', 
-        '#wrapper', '#container', '#content'
-    ];
-    
-    // 광고 요소 숨기기 함수
-    function hideAdElement(element) {
-        // 이미 처리한 요소는 건너뛰기
-        if (processedElements.has(element)) return;
+        // 이미 처리되었는지 확인
+        if (element.getAttribute('data-ad-hidden') === 'true') return;
         
-        // 중요 요소인지 확인
-        for (const selector of criticalSelectors) {
-            try {
-                if (element.matches(selector)) return;
-            } catch (e) {}
+        // 요소가 중요한 콘텐츠인지 확인 (매우 간단한 체크)
+        const id = (element.id || '').toLowerCase();
+        const className = (element.className || '').toString().toLowerCase();
+        
+        // 중요한 콘텐츠는 절대 숨기지 않음
+        if (id.includes('content') || id.includes('board') || 
+            className.includes('board_list') || className.includes('sl-content')) {
+            return;
         }
         
         // 요소 숨기기
         element.style.display = 'none';
-        element.style.height = '0px';
+        element.style.height = '0';
         element.style.overflow = 'hidden';
-        element.style.margin = '0px';
-        element.style.padding = '0px';
+        element.style.margin = '0';
+        element.style.padding = '0';
         
-        // 처리된 요소로 표시
-        processedElements.add(element);
+        // 처리 표시
+        element.setAttribute('data-ad-hidden', 'true');
     }
     
-    // 광고만 제거하는 함수
-    function removeOnlyAds() {
-        // 명확한 광고 제거
-        adSelectors.forEach(selector => {
-            try {
-                document.querySelectorAll(selector).forEach(element => {
-                    if (!processedElements.has(element)) {
-                        hideAdElement(element);
-                    }
-                });
-            } catch (e) {}
-        });
-        
-        // 색상 기반 광고 (푸드페스타 등) - 별도 처리
-        colorBasedAdSelectors.forEach(selector => {
-            try {
-                document.querySelectorAll(selector).forEach(element => {
-                    if (!processedElements.has(element)) {
-                        hideAdElement(element);
-                    }
-                });
-            } catch (e) {}
-        });
-        
-        // 광고 iframe 처리
-        try {
-            const iframes = document.getElementsByTagName('iframe');
-            for (let i = 0; i < iframes.length; i++) {
-                const frame = iframes[i];
-                
-                // 이미 처리한 iframe은 건너뛰기
-                if (processedElements.has(frame)) continue;
-                
-                // 광고 iframe인지 확인
-                const src = frame.src || '';
-                const isAdIframe = adIframePatterns.some(pattern => src.includes(pattern));
-                
-                if (isAdIframe && frame.parentElement) {
-                    hideAdElement(frame.parentElement);
-                }
-            }
-        } catch (e) {}
-    }
-    
-    // 안전한 실행 함수
-    function safeExecute() {
-        try {
-            removeOnlyAds();
-        } catch (e) {
-            console.error("광고 차단 중 오류 발생:", e);
-        }
-    }
-    
-    // 초기화 및 실행
+    /**
+     * 지연된 실행 함수 (페이지가 완전히 로드된 후)
+     */
     function init() {
-        // 페이지 로드 시 한 번만 실행
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', safeExecute);
-        } else {
-            safeExecute();
-        }
-        
-        // 페이지 완전히 로드된 후 한 번 더 실행
+        // 페이지가 완전히 로드된 후 실행
         window.addEventListener('load', function() {
-            // 로드 직후 실행
-            safeExecute();
-            
-            // 2초 후 마지막으로 한 번 더 실행 (지연 로드 광고용)
-            setTimeout(safeExecute, 2000);
+            // 약간 지연시켜 실행 (구글 광고가 로드된 후)
+            setTimeout(hideExactAds, 500);
         });
     }
     
