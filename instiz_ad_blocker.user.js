@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         인스티즈 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
-// @version      0.6
-// @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 차단하는 스크립트
+// @version      0.7
+// @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 차단하는 스크립트 (#ingreen 제외)
 // @author       AI Assistant
 // @match        https://www.instiz.net/*
 // @grant        none
@@ -26,6 +26,10 @@
         iframe[src*="iframe_fit.htm"],
         img[src*="ad.doubleclick"],
         div[id*="ad-container"],
+        
+        /* 더보기 누른 후 나타나는 광고 공간 제거 */
+        tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"],
+        tr[style*="height: auto"][style*="padding: 0px"],
         
         /* 사용자가 제공한 특정 공지 형태의 광고 */
         div.notice,
@@ -57,8 +61,8 @@
         .content.between_house,
         div.content:has(.texthead.bttitle:contains("찬성하면 신설돼요")),
         
-        /* 팬 캘린더 영역 */
-        .content_sub,
+        /* 팬 캘린더 영역 (#ingreen 제외) */
+        .content_sub:not(#ingreen .content_sub),
         .topbtn2,
         .topbtn1,
         #swiper-container-fantime-latest
@@ -128,9 +132,10 @@
             'iframe[src*="ad.doubleclick"]',
             'iframe[src*="iframe_fit.htm"]',
             'div[id*="ad-container"]',
-            '.powerlink_m4',
-            'a[class^="ad"] > div[id="list_ad"]',
-            'div[class*="naver_powerlink"]',
+            
+            // 더보기 누른 후 나타나는 광고 공간
+            'tr[style*="height: auto"] > td[style*="padding: 0px"] > div[style*="padding: 20px 0px"]',
+            'tr[style*="height: auto"][style*="padding: 0px"]',
             
             // 컨테이너 및 공간
             '.view_top',
@@ -150,8 +155,8 @@
             // 찬성하면 신설돼요 영역
             '.content.between_house',
             
-            // 팬 캘린더 영역
-            '.content_sub',
+            // 팬 캘린더 영역 (#ingreen 제외)
+            '.content_sub:not(#ingreen .content_sub)',
             '.topbtn2',
             '.topbtn1',
             '#swiper-container-fantime-latest'
@@ -163,6 +168,12 @@
                 const elements = document.querySelectorAll(selector);
                 elements.forEach(element => {
                     if (element) {
+                        // #ingreen 내부의 .content_sub는 제외
+                        if (selector.includes('content_sub') && 
+                            element.closest('#ingreen')) {
+                            return; // 이 요소는 건너뜀
+                        }
+                        
                         // 요소 숨기기 및 공간 제거
                         element.style.setProperty('display', 'none', 'important');
                         element.style.setProperty('height', '0', 'important');
@@ -195,7 +206,9 @@
                 el.style.setProperty('visibility', 'hidden', 'important');
                 el.style.setProperty('position', 'absolute', 'important');
                 el.style.setProperty('z-index', '-9999', 'important');
-                el.parentNode.removeChild(el); // 가능하면 DOM에서 완전히 제거
+                try {
+                    el.parentNode.removeChild(el); // 가능하면 DOM에서 완전히 제거
+                } catch (e) {}
             });
             
             // 2. "이런 글은 어떠세요?" 텍스트 찾아 그 요소와 관련 컨테이너 제거
@@ -247,6 +260,25 @@
                     depth++;
                 }
             });
+            
+            // 4. 더보기 버튼 누른 후 나타나는 광고 영역 제거
+            const adRows = document.querySelectorAll('tr[style*="height: auto"] > td[style*="padding: 0px"]');
+            adRows.forEach(row => {
+                const adContainer = row.querySelector('div[style*="padding: 20px 0px"]');
+                if (adContainer) {
+                    // 부모 tr까지 찾아서 제거
+                    let parentRow = row.parentElement;
+                    if (parentRow && parentRow.tagName === 'TR') {
+                        parentRow.style.setProperty('display', 'none', 'important');
+                        parentRow.style.setProperty('height', '0', 'important');
+                        parentRow.style.setProperty('min-height', '0', 'important');
+                        parentRow.style.setProperty('visibility', 'hidden', 'important');
+                        try {
+                            parentRow.parentNode.removeChild(parentRow);
+                        } catch (e) {}
+                    }
+                }
+            });
         } catch (e) {
             console.log('불필요한 콘텐츠 제거 중 오류 발생:', e.message);
         }
@@ -262,13 +294,21 @@
                     // 새로 추가된 노드가 광고인지 확인
                     mutation.addedNodes.forEach(node => {
                         if (node.nodeType === 1) { // Element 노드
+                            // #ingreen 내부의 .content_sub는 제외
+                            if (node.classList && node.classList.contains('content_sub')) {
+                                const ingreen = node.closest('#ingreen');
+                                if (ingreen) {
+                                    return; // #ingreen 내부의 .content_sub는 건너뜀
+                                }
+                            }
+                            
                             if (node.id && (node.id.startsWith('sense') || node.id.includes('ad-container')) || 
                                 (node.classList && 
                                  (node.classList.contains('powerlink_m4') || 
                                   node.classList.contains('howabout_wrap') ||
                                   node.classList.contains('notice') ||
                                   node.classList.contains('between_house') ||
-                                  node.classList.contains('content_sub')))) {
+                                  (node.classList.contains('content_sub') && !node.closest('#ingreen'))))) {
                                 shouldHide = true;
                             }
                             
@@ -277,6 +317,14 @@
                                 (node.src && (node.src.includes('adsense') || 
                                             node.src.includes('doubleclick') ||
                                             node.src.includes('iframe_fit.htm')))) {
+                                shouldHide = true;
+                            }
+                            
+                            // 더보기 후 나타나는 광고 행 확인
+                            if (node.tagName === 'TR' && 
+                                node.style && 
+                                node.style.height && 
+                                node.style.height.includes('auto')) {
                                 shouldHide = true;
                             }
                         }
@@ -293,14 +341,18 @@
         if (document.body) {
             observer.observe(document.body, { 
                 childList: true, 
-                subtree: true
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class']
             });
         } else {
             // body가 아직 없으면 로드될 때까지 대기
             document.addEventListener('DOMContentLoaded', () => {
                 observer.observe(document.body, { 
                     childList: true, 
-                    subtree: true
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['style', 'class']
                 });
             });
         }
