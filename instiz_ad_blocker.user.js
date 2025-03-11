@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         인스티즈 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
-// @version      0.9
-// @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 차단하는 스크립트 (#ingreen 제외)
+// @version      1.1
+// @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 단순하게 차단하는 스크립트 (#ingreen 제외)
 // @author       AI Assistant
 // @match        https://www.instiz.net/*
 // @grant        none
@@ -381,174 +381,17 @@
         }
     }
     
-    // 동적으로 추가되는 광고 및 콘텐츠를 감지하기 위한 MutationObserver 설정
-    function setupObserver() {
-        const observer = new MutationObserver(mutations => {
-            let shouldHide = false;
-            
-            mutations.forEach(mutation => {
-                if (mutation.addedNodes.length) {
-                    // 새로 추가된 노드가 광고인지 확인
-                    mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === 1) { // Element 노드
-                            // #ingreen 내부의 .content_sub는 제외
-                            if (node.classList && node.classList.contains('content_sub')) {
-                                const ingreen = node.closest('#ingreen');
-                                if (ingreen) {
-                                    return; // #ingreen 내부의 .content_sub는 건너뜀
-                                }
-                            }
-                            
-                            if (node.id && (node.id.startsWith('sense') || node.id.includes('ad-container')) || 
-                                (node.classList && 
-                                 (node.classList.contains('powerlink_m4') || 
-                                  node.classList.contains('howabout_wrap') ||
-                                  node.classList.contains('notice') ||
-                                  node.classList.contains('between_house') ||
-                                  (node.classList.contains('content_sub') && !node.closest('#ingreen'))))) {
-                                shouldHide = true;
-                            }
-                            
-                            // iframe이 추가된 경우도 확인
-                            if (node.tagName === 'IFRAME' && 
-                                (node.src && (node.src.includes('adsense') || 
-                                            node.src.includes('doubleclick') ||
-                                            node.src.includes('iframe_fit.htm')))) {
-                                shouldHide = true;
-                            }
-                            
-                            // 더보기 후 나타나는 광고 행 확인
-                            if (node.tagName === 'TR') {
-                                // TR 자체 스타일 확인
-                                if (node.style && 
-                                    node.style.height && 
-                                    node.style.height.includes('auto')) {
-                                    shouldHide = true;
-                                }
-                                
-                                // TR 내부 TD 확인
-                                const tds = node.querySelectorAll('td');
-                                tds.forEach(td => {
-                                    if (td.style && 
-                                        ((td.style.padding && td.style.padding.includes('0')) || 
-                                         (td.style.lineHeight && td.style.lineHeight.includes('0')))) {
-                                        shouldHide = true;
-                                    }
-                                });
-                                
-                                // TR 내부에 adsbygoogle 있는지 확인
-                                if (node.querySelector('ins.adsbygoogle')) {
-                                    shouldHide = true;
-                                }
-                                
-                                // TR 내부에 특정 div 패턴 있는지 확인
-                                if (node.querySelector('div[style*="width:100%"][style*="height:100px"]')) {
-                                    shouldHide = true;
-                                }
-                            }
-                            
-                            // TD 광고 패턴 확인
-                            if (node.tagName === 'TD' && 
-                                node.style && 
-                                ((node.style.padding && node.style.padding.includes('0')) || 
-                                 (node.style.lineHeight && node.style.lineHeight.includes('0')))) {
-                                shouldHide = true;
-                            }
-                            
-                            // 연관 메뉴 아래 버튼들 확인
-                            if (node.tagName === 'SPAN' && 
-                                node.classList && 
-                                node.classList.contains('button')) {
-                                const parent = node.parentElement;
-                                if (parent && parent.classList && parent.classList.contains('subcategory')) {
-                                    shouldHide = true;
-                                }
-                            }
-                        }
-                    });
-                }
-            });
-            
-            if (shouldHide) {
-                hideAds();
-            }
-        });
-        
-        // body 요소가 로드되면 변화 감지 시작
-        if (document.body) {
-            observer.observe(document.body, { 
-                childList: true, 
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['style', 'class']
-            });
-        } else {
-            // body가 아직 없으면 로드될 때까지 대기
-            document.addEventListener('DOMContentLoaded', () => {
-                observer.observe(document.body, { 
-                    childList: true, 
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['style', 'class']
-                });
-            });
-        }
-    }
-    
-    // 모든 클릭 이벤트를 감지하여 광고를 숨기는 함수
-    function setupClickObserver() {
-        document.addEventListener('click', function(e) {
-            // 광고 제거 시간차를 두고 반복 실행
-            setTimeout(hideAds, 100);  // 즉시
-            setTimeout(hideAds, 300);  // 0.3초 후
-            setTimeout(hideAds, 500);  // 0.5초 후
-            setTimeout(hideAds, 1000); // 1초 후
-            setTimeout(hideAds, 2000); // 2초 후
-        }, true);
-    }
-    
     // 스크립트 초기화 함수
     function init() {
         // 광고 숨기기
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                hideAds();
-                setupObserver();
-                setupClickObserver();
-            });
+            document.addEventListener('DOMContentLoaded', hideAds);
         } else {
             hideAds();
-            setupObserver();
-            setupClickObserver();
         }
         
         // 페이지가 완전히 로드된 후 한 번 더 실행 (지연 로드된 광고 대응)
-        window.addEventListener('load', () => {
-            hideAds();
-            // 추가로 여러 번 반복 실행
-            setTimeout(hideAds, 500);
-            setTimeout(hideAds, 1000);
-        });
-        
-        // 1초 후 한 번 더 실행 (늦게 로드되는 광고 대응)
-        setTimeout(hideAds, 1000);
-        
-        // 3초 후에도 한 번 더 실행 (매우 늦게 로드되는 광고 대응)
-        setTimeout(hideAds, 3000);
-        
-        // 5초 후에도 한 번 더 실행
-        setTimeout(hideAds, 5000);
-        
-        // 10초 후에도 한 번 더 실행 (매우 늦게 로드되는 광고 대응)
-        setTimeout(hideAds, 10000);
-        
-        // 페이지 스크롤 시에도 광고 숨기기 실행 (스크롤 시 동적으로 로드되는 광고 대응)
-        window.addEventListener('scroll', function() {
-            setTimeout(hideAds, 100);
-        }, { passive: true });
-        
-        // 정기적으로 광고 제거 함수 실행 (30초 간격)
-        setInterval(hideAds, 30000);
+        window.addEventListener('load', hideAds);
     }
     
     // 스크립트 즉시 실행
