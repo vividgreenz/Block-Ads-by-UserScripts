@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         뉴덕 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.6
 // @description  newduck.net 사이트의 모든 광고 영역 차단 (게시판 및 게시글 페이지)
 // @author       AI Assistant
 // @match        https://newduck.net/*
@@ -13,81 +13,72 @@
 (function() {
     'use strict';
     
+    // 중요 콘텐츠를 나타내는 선택자 목록 (보존할 요소들)
+    const preserveSelectors = [
+        '.board_list',
+        '.board_read',
+        '.board_content',
+        '.board_header',
+        '.document_list',
+        '.document',
+        '.articleList',
+        '.article',
+        '.board',
+        '.sl-header',
+        '.sl-footer',
+        '.sl-body'
+    ];
+    
     // 광고 영역을 제거하는 함수
     function removeAds() {
-        // 사용자가 제공한 HTML 구조를 기반으로 선택자 목록 생성
-        const adSelectors = [
-            // 구글 광고 관련 (게시판 및 게시글 상단)
+        // 광고 컨테이너 구역 선택자 목록 (컨테이너 자체를 제거)
+        const adContainerSelectors = [
+            // 구글 광고 컨테이너 (게시판 및 게시글 상단)
             '#ad-container',
+            'div[id^="aswift_"][id$="_host"]',
+            'div.google-auto-placed',
             'ins.adsbygoogle',
             '[data-ad-client]',
             '[data-adsbygoogle-status]',
             
-            // 파워링크 광고 관련
+            // 파워링크 광고 관련 컨테이너
             '#powerLink', 
             '#powerLink1',
             '.powerlink',
             '.toplink',
             '.powerlink_list',
             
-            // 하단 배너 광고 (상위 요소 포함)
+            // 하단 배너 광고 컨테이너 (사용자가 제공한 HTML 구조 기반)
             '.custom-banner',
             'aside.custom-cul-banner',
             '#content_bottom_link',
             '.custom-image-container',
-            '#content_bottom',
-            
-            // 배너 관련 텍스트 메시지 (푸드페스타 등)
             'p[style*="text-align: center"] span[style*="color:#ff6699"]',
-            'p:contains("푸드페스타")',
-            'p:contains("뉴덕 10p")',
             
-            // 구글 디스플레이 광고
+            // 푸드페스타 관련 광고 텍스트를 포함하는 HTML 요소
+            'p:has(span[style*="color:#ff6699"])',
+            'p:has(strong:contains("푸드페스타"))',
+            'p:has(strong:contains("뉴덕 10p"))',
+            
+            // 기타 광고 컨테이너
             '.ns-hiaaa-l-towerA',
-            'iframe[src*="googleads"]',
-            'iframe[src*="doubleclick"]',
-            
-            // 일반적인 광고 관련 클래스/ID
-            'div[id*="aswift_"]',
-            'div[id*="google_ads_"]',
-            '[id*="banner"]',
-            '[class*="banner"]',
-            '[id*="ads"]',
-            '[class*="ads"]',
-            '[id*="advertisement"]',
-            '[class*="advertisement"]'
+            '.slsmvbn',
+            '.adfit',
+            'div[id^="div-gpt-ad"]'
         ];
         
-        // 각 선택자에 대해 요소를 찾아 제거
-        adSelectors.forEach(selector => {
+        // 1. 일반 광고 컨테이너 제거
+        adContainerSelectors.forEach(selector => {
             try {
                 const elements = document.querySelectorAll(selector);
                 elements.forEach(element => {
-                    // 요소 숨기기 및 공간 제거
-                    element.style.display = 'none';
-                    element.style.height = '0';
-                    element.style.margin = '0';
-                    element.style.padding = '0';
-                    element.style.overflow = 'hidden';
-                    element.style.visibility = 'hidden';
-                    
-                    // 부모 요소가 광고만을 위한 컨테이너인 경우 그것도 제거
-                    if (element.parentElement) {
-                        // 파워링크 관련 부모 요소도 처리
-                        if (element.parentElement.classList.contains('lst_cont') || 
-                            element.parentElement.id === 'contentsList') {
-                            element.parentElement.style.display = 'none';
-                            element.parentElement.style.height = '0';
-                        }
-                        
-                        // 단일 자식을 가진 컨테이너 처리
-                        if (element.parentElement.children.length === 1) {
-                            element.parentElement.style.display = 'none';
-                            element.parentElement.style.height = '0';
-                            element.parentElement.style.margin = '0';
-                            element.parentElement.style.padding = '0';
-                        }
+                    // 보존해야 할 중요 요소의 자식인지 확인
+                    if (isPreservedElement(element)) {
+                        return; // 중요 요소의 자식이면 건너뜀
                     }
+                    
+                    // 광고 컨테이너 제거 처리
+                    removeAdContainer(element);
                 });
             } catch (e) {
                 // 오류 무시 (예: 복잡한 선택자 지원 안됨)
@@ -95,81 +86,256 @@
             }
         });
         
-        // 네이버 파워링크 광고 컨테이너 특별 처리
-        const powerLinkContainers = document.querySelectorAll('div[class*="powerlink"], div[id*="powerLink"]');
-        powerLinkContainers.forEach(container => {
-            // 컨테이너와 그 부모 요소 모두 숨김
-            container.style.display = 'none';
-            if (container.parentElement) {
-                container.parentElement.style.display = 'none';
-            }
+        // 2. 광고 iframe 부모 컨테이너 제거
+        const adIframes = document.querySelectorAll('iframe[src*="googleads"], iframe[src*="doubleclick"]');
+        adIframes.forEach(frame => {
+            // 상위 컨테이너 찾아서 제거 (최대 3단계 상위까지)
+            findAndRemoveAdContainer(frame, 3);
         });
         
-        // 구글 광고 iframe 컨테이너 특별 처리
-        const adFrames = document.querySelectorAll('iframe[src*="googleads"], iframe[src*="doubleclick"]');
-        adFrames.forEach(frame => {
-            // iframe과 그 상위 컨테이너 모두 제거
-            let currentElement = frame;
-            for (let i = 0; i < 3; i++) {  // 최대 3단계 상위까지 확인
-                if (currentElement) {
-                    currentElement.style.display = 'none';
-                    currentElement.style.height = '0';
-                    currentElement = currentElement.parentElement;
+        // 3. 특정 컨테이너 구조 기반 제거 (사용자가 제공한 HTML 구조)
+        removeSpecificContainers();
+    }
+    
+    // 광고 컨테이너를 완전히 제거하는 함수
+    function removeAdContainer(element) {
+        if (!element || !element.style) return;
+        
+        // 엘리먼트 자체를 완전히 숨김
+        element.style.display = 'none';
+        element.style.visibility = 'hidden';
+        element.style.opacity = '0';
+        element.style.height = '0px';
+        element.style.minHeight = '0px';
+        element.style.maxHeight = '0px';
+        element.style.margin = '0px';
+        element.style.padding = '0px';
+        element.style.border = 'none';
+        element.style.overflow = 'hidden';
+        
+        // 콘텐츠 비우기
+        if (element.innerHTML) {
+            element.innerHTML = '';
+        }
+        
+        // 처리 표시
+        element.dataset.adBlockerRemoved = 'true';
+    }
+    
+    // 광고 관련 컨테이너를 찾아 제거하는 함수
+    function findAndRemoveAdContainer(element, maxDepth) {
+        if (!element || maxDepth <= 0) return;
+        
+        let currentElement = element;
+        let depth = 0;
+        
+        // 부모 요소를 타고 올라가며 광고 컨테이너 찾기
+        while (currentElement && depth < maxDepth) {
+            // 이미 처리된 요소는 건너뜀
+            if (currentElement.dataset.adBlockerRemoved === 'true') break;
+            
+            // 중요 요소는 보존
+            if (isPreservedElement(currentElement)) break;
+            
+            // 광고 관련 특성이 있는지 확인
+            const isAdContainer = checkIfAdContainer(currentElement);
+            
+            if (isAdContainer) {
+                removeAdContainer(currentElement);
+                break;
+            }
+            
+            // 바로 부모만 제거하는 경우 (iframe의 직접 부모 등)
+            if (depth === 0) {
+                removeAdContainer(currentElement);
+            }
+            
+            // 부모 요소로 이동
+            currentElement = currentElement.parentElement;
+            depth++;
+        }
+    }
+    
+    // 요소가 광고 컨테이너인지 확인하는 함수
+    function checkIfAdContainer(element) {
+        if (!element) return false;
+        
+        // ID 기반 확인
+        if (element.id) {
+            const id = element.id.toLowerCase();
+            if (id.includes('ad') || id.includes('banner') || 
+                id.includes('sponsor') || id.includes('promote') || 
+                id.includes('google') || id.includes('aswift')) {
+                return true;
+            }
+        }
+        
+        // 클래스 기반 확인
+        if (element.className && typeof element.className === 'string') {
+            const className = element.className.toLowerCase();
+            if (className.includes('ad') || className.includes('banner') || 
+                className.includes('sponsor') || className.includes('promote') || 
+                className.includes('googleads')) {
+                return true;
+            }
+        }
+        
+        // 데이터 속성 확인
+        for (const attr of element.attributes) {
+            if (attr.name.startsWith('data-') && 
+                (attr.name.includes('ad') || attr.name.includes('google'))) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // 사용자가 제공한 특정 HTML 구조를 기반으로 광고 컨테이너 제거
+    function removeSpecificContainers() {
+        // 1. 사용자가 제공한 HTML 구조 - 광고 컨테이너
+        try {
+            // 광고 컨테이너 #ad-container 제거
+            const adContainers = document.querySelectorAll('#ad-container');
+            adContainers.forEach(container => {
+                if (!isPreservedElement(container)) {
+                    removeAdContainer(container);
+                    
+                    // 부모 요소도 확인하여 제거
+                    if (container.parentElement && !isPreservedElement(container.parentElement)) {
+                        const parent = container.parentElement;
+                        if (parent.children.length <= 2) {
+                            removeAdContainer(parent);
+                        }
+                    }
+                }
+            });
+            
+            // 하단 배너 광고 - custom-banner와 관련 요소들
+            const customBanners = document.querySelectorAll('aside.custom-cul-banner, .custom-banner');
+            customBanners.forEach(banner => {
+                if (!isPreservedElement(banner)) {
+                    removeAdContainer(banner);
+                    
+                    // 관련된 다음 요소가 텍스트 컨테이너인 경우 그것도 제거
+                    const nextElement = banner.nextElementSibling;
+                    if (nextElement && nextElement.tagName === 'P' && 
+                        !isPreservedElement(nextElement)) {
+                        removeAdContainer(nextElement);
+                    }
+                }
+            });
+            
+            // 파워링크 광고
+            const powerLinks = document.querySelectorAll('#powerLink, #powerLink1, .powerlink');
+            powerLinks.forEach(link => {
+                if (!isPreservedElement(link)) {
+                    removeAdContainer(link);
+                }
+            });
+        } catch (e) {
+            console.debug('특정 컨테이너 제거 오류(무시됨):', e.message);
+        }
+    }
+    
+    // 요소가 보존해야 할 중요 콘텐츠인지 확인하는 함수
+    function isPreservedElement(element) {
+        // 이미 처리된 요소라면 패스
+        if (element.dataset.adBlockerChecked === 'true') {
+            return element.dataset.isPreserved === 'true';
+        }
+        
+        // 현재 요소나 부모 요소들 중 하나라도 보존 대상인지 확인
+        let currentElement = element;
+        let maxDepth = 5; // 최대 5단계 상위까지만 확인
+        
+        while (currentElement && maxDepth > 0) {
+            // 요소가 보존 대상 선택자와 일치하는지 확인
+            for (const selector of preserveSelectors) {
+                try {
+                    if (currentElement.matches && currentElement.matches(selector)) {
+                        // 결과를 캐시하여 다음 호출 시 재사용
+                        element.dataset.adBlockerChecked = 'true';
+                        element.dataset.isPreserved = 'true';
+                        return true;
+                    }
+                } catch (e) {
+                    // 선택자 일치 오류 무시
                 }
             }
+            
+            // 클래스나 ID로 중요 요소 판단
+            if (currentElement.id) {
+                const id = currentElement.id.toLowerCase();
+                if (id.includes('content') || id.includes('board') || id.includes('article') || 
+                    id.includes('post') || id.includes('list')) {
+                    element.dataset.adBlockerChecked = 'true';
+                    element.dataset.isPreserved = 'true';
+                    return true;
+                }
+            }
+            
+            if (currentElement.className && typeof currentElement.className === 'string') {
+                const className = currentElement.className.toLowerCase();
+                if (className.includes('content') || className.includes('board') || 
+                    className.includes('article') || className.includes('post') || 
+                    className.includes('list')) {
+                    element.dataset.adBlockerChecked = 'true';
+                    element.dataset.isPreserved = 'true';
+                    return true;
+                }
+            }
+            
+            // 부모 요소로 이동
+            currentElement = currentElement.parentElement;
+            maxDepth--;
+        }
+        
+        // 결과를 캐시
+        element.dataset.adBlockerChecked = 'true';
+        element.dataset.isPreserved = 'false';
+        return false;
+    }
+    
+    // 초기 및 지연 실행 설정
+    function initAdBlocker() {
+        // 즉시 실행
+        removeAds();
+        
+        // 페이지 로드 시 실행
+        window.addEventListener('load', removeAds);
+        
+        // DOMContentLoaded 시에도 실행 (더 빠른 차단을 위해)
+        window.addEventListener('DOMContentLoaded', removeAds);
+        
+        // 동적으로 추가되는 요소 감시
+        const observer = new MutationObserver(function() {
+            removeAds();
         });
         
-        // 텍스트 기반 검색으로 광고 관련 텍스트 차단
-        const allParagraphs = document.querySelectorAll('p');
-        allParagraphs.forEach(p => {
-            const text = p.textContent.toLowerCase();
-            if (text.includes('푸드페스타') || 
-                text.includes('클릭하고') || 
-                text.includes('뉴덕 10p') || 
-                text.includes('포인트') && text.includes('받기')) {
-                p.style.display = 'none';
-                p.style.height = '0';
-            }
-        });
-    }
-
-    // 페이지 로드 시 실행
-    window.addEventListener('load', removeAds);
-    
-    // DOMContentLoaded 시에도 실행 (더 빠른 차단을 위해)
-    window.addEventListener('DOMContentLoaded', removeAds);
-    
-    // 동적으로 추가되는 요소 감시
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                removeAds();
-            }
-        });
-    });
-    
-    // 문서 전체 변화 감시 시작
-    if (document.body) {
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    } else {
-        // body가 아직 로드되지 않은 경우 로드 후 감시 시작
-        window.addEventListener('DOMContentLoaded', function() {
+        // 문서 전체 변화 감시 시작
+        if (document.body) {
             observer.observe(document.body, {
                 childList: true,
                 subtree: true
             });
+        } else {
+            // body가 아직 로드되지 않은 경우 로드 후 감시 시작
+            window.addEventListener('DOMContentLoaded', function() {
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+            });
+        }
+        
+        // 지연 로드되는 광고 처리를 위한 반복 실행
+        const intervals = [1000, 2000, 3000, 5000];
+        intervals.forEach(ms => {
+            setTimeout(removeAds, ms);
         });
     }
     
-    // 초기 실행
-    removeAds();
-    
-    // 1초 후 다시 실행 (지연 로드되는 광고 처리)
-    setTimeout(removeAds, 1000);
-    
-    // 3초 후 한번 더 실행 (늦게 로드되는 광고 처리)
-    setTimeout(removeAds, 3000);
+    // 스크립트 실행
+    initAdBlocker();
 })(); 
