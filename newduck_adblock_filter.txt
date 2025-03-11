@@ -1,28 +1,11 @@
-! Title: 뉴덕 광고 차단 필터
-! Description: 뉴덕 사이트의 광고를 효과적으로 차단하는 필터
+[AdGuard]
+! Title: 뉴덕 광고 차단 필터 (단순 버전)
+! Description: 뉴덕 사이트의 광고를 기본 선택자로만 차단
 ! Last updated: 2023-05-12
 ! Expires: 1 day
-! Homepage: https://github.com/vividgreenz/Block-Ads-by-UserScripts
-! License: MIT
 
-! 광고 컨테이너 차단
+! 기본 광고 컨테이너
 newduck.net###ad-container
-newduck.net##.slatc-content > p
-newduck.net##.slatc-content > aside
 newduck.net##.custom-banner
 newduck.net##.custom-cul-banner
-
-! 구글 광고 차단
-newduck.net##[id^="google_ads_"]
-newduck.net##[id^="div-gpt-ad"]
-newduck.net##.adsbygoogle
-newduck.net##ins.adsbygoogle
-
-! 텍스트 기반 광고 차단
-newduck.net##.side__li:has-text(구글광고)
-newduck.net##.side__li:has-text(푸드페스타)
-
-! 프레임 차단
-newduck.net##iframe[src*="doubleclick"]
-newduck.net##iframe[src*="googleads"]
-newduck.net##iframe[src*="advertis"] 
+newduck.net##.adsbygoogle 
