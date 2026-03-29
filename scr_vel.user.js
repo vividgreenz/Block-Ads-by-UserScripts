@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         첨부파일 영역 복구 및 태그 정리
 // @namespace    http://tampermonkey.net/
-// @version      6.1
+// @version      7.0
 // @match        *://*/*
 // @grant        none
 // @run-at       document-idle
@@ -27,19 +27,18 @@
     };
 
     const fixAll = () => {
-        document.querySelectorAll('.view_file_download').forEach(fixFile);
+        // 언더바 없는 viewfiledownload 가 정확한 클래스명
+        document.querySelectorAll('.viewfiledownload').forEach(fixFile);
         fixTags();
     };
 
-    // 즉시 실행
     fixAll();
 
-    // style 속성이 제거되거나 변경되면 즉시 재적용
     const observer = new MutationObserver((mutations) => {
         for (const m of mutations) {
             if (m.type === 'attributes') {
                 const el = m.target;
-                if (el.classList && el.classList.contains('view_file_download')) {
+                if (el.classList && el.classList.contains('viewfiledownload')) {
                     fixFile(el);
                 }
             }
@@ -54,7 +53,6 @@
         attributeFilter: ['style', 'class']
     });
 
-    // 10초 후 옵저버 종료
     setTimeout(() => observer.disconnect(), 10000);
 
 })();
