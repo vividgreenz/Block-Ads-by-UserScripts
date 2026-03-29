@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         인스티즈 광고 차단 스크립트
+// @name         ㅇㅅㅌㅈ 광고 차단 스크립트
 // @namespace    http://tampermonkey.net/
 // @version      1.2
-// @description  인스티즈 사이트의 모든 광고와 불필요한 콘텐츠를 단순하게 차단하는 스크립트 (#ingreen 제외)
+// @description  ㅇㅅㅌㅈ 사이트의 모든 광고와 불필요한 콘텐츠를 단순하게 차단하는 스크립트 (#ingreen 제외)
 // @author       AI Assistant
 // @match        https://www.instiz.net/*
 // @grant        none
