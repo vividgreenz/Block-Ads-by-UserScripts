@@ -26,6 +26,23 @@
         });
     };
 
+    // 태그 선택 영역: 첫 번째 줄 만 남기고 나머지 숨김
+setTimeout(() => {
+    const tagContainer = document.querySelector('.tags-item[data-toggle="buttons"]');
+    if (!tagContainer) return;
+    
+    let passedFirstLine = false;
+    tagContainer.childNodes.forEach(node => {
+        if (node.classList && node.classList.contains('tags-line')) {
+            passedFirstLine = true;
+        }
+        if (passedFirstLine) {
+            node.style.setProperty('display', 'none', 'important');
+        }
+    });
+}, 1000);
+
+
     // 스크립트 실행 타이밍을 맞추기 위해 0.5초 간격으로 3번 정도 찔러봅니다.
     let attempts = 0;
     let interval = setInterval(() => {
