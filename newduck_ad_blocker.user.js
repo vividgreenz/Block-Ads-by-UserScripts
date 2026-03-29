@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         뉴덕 광고 차단 스크립트 (단순 최적화)
+// @name         ㄴㄷ광고 차단 스크립트 (단순 최적화)
 // @namespace    http://tampermonkey.net/
 // @version      2.3
 // @description  광고 공간 완전 제거 - 단순하고 가벼운 구현
