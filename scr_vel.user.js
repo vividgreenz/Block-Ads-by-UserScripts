@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         첨부파일 영역 복구 (모든 사이트 적용)
+// @name         첨부파일 영역 복구 + 태그 필터
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  첨부파일 영역에 고의로 섞어둔 광고 클래스를 제거하여 화면에 다시 표시합니다.
+// @version      1.6
+// @description  첨부파일 복구 및 특정 태그 글 숨김
 // @match        *://*/*
 // @grant        none
 // @run-at       document-idle
@@ -11,6 +11,7 @@
 (function() {
     'use strict';
 
+    // 첨부파일 복구
     const style = document.createElement('style');
     style.textContent = '.view_file_download { display: block !important; visibility: visible !important; }';
     document.head.appendChild(style);
@@ -20,4 +21,15 @@
         el.style.setProperty('display', 'block', 'important');
         el.style.setProperty('visibility', 'visible', 'important');
     });
+
+    // 태그 필터 (숨길 키워드 목록)
+    const hideKeywords = ['만화'];
+
+    document.querySelectorAll('#list-body li').forEach(li => {
+        const font = li.querySelector('div.wr-subject a font');
+        if (font && hideKeywords.some(keyword => font.textContent.includes(keyword))) {
+            li.style.setProperty('display', 'none', 'important');
+        }
+    });
+
 })();
