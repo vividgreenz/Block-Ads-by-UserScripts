@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         첨부파일 영역 복구 (모든 사이트 적용)
+// @name         첨부파일 영역 복구 및 태그 첫 줄 표시
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  첨부파일 영역에 고의로 섞어둔 광고 클래스를 제거하여 화면에 다시 표시합니다.
+// @version      1.3
+// @description  첨부파일 광고 클래스 제거 및 태그 리스트 첫 줄만 남기기
 // @match        *://*/*
 // @grant        none
 // @run-at       document-idle
@@ -10,8 +10,20 @@
 
 (function() {
     'use strict';
-    
-    // 페이지 로딩 후 애드블록이 숨긴 요소에서 '광고 이름표'만 떼어냅니다.
+
+    // 1. 태그 선택 영역: 첫 번째 줄만 남기고 나머지 숨김 (CSS 주입)
+    // 자바스크립트 실행 타이밍과 무관하게 브라우저가 알아서 숨기도록 CSS를 덮어씌웁니다.
+    const style = document.createElement('style');
+    style.innerHTML = `
+        /* 첫 번째 태그 구분선(.tags-line)과 그 뒤에 오는 모든 요소를 강제로 숨김 */
+        .tags-item[data-toggle="buttons"] .tags-line,
+        .tags-item[data-toggle="buttons"] .tags-line ~ * {
+            display: none !important;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 2. 페이지 로딩 후 애드블록이 숨긴 요소에서 '광고 이름표'만 떼어냅니다.
     const fixAttachments = () => {
         // view_file_download(첨부파일) 클래스를 가진 모든 요소를 찾음
         const files = document.querySelectorAll('.view_file_download');
@@ -25,23 +37,6 @@
             file.style.setProperty('visibility', 'visible', 'important');
         });
     };
-
-    // 태그 선택 영역: 첫 번째 줄 만 남기고 나머지 숨김
-setTimeout(() => {
-    const tagContainer = document.querySelector('.tags-item[data-toggle="buttons"]');
-    if (!tagContainer) return;
-    
-    let passedFirstLine = false;
-    tagContainer.childNodes.forEach(node => {
-        if (node.classList && node.classList.contains('tags-line')) {
-            passedFirstLine = true;
-        }
-        if (passedFirstLine) {
-            node.style.setProperty('display', 'none', 'important');
-        }
-    });
-}, 1000);
-
 
     // 스크립트 실행 타이밍을 맞추기 위해 0.5초 간격으로 3번 정도 찔러봅니다.
     let attempts = 0;
