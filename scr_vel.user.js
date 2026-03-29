@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         첨부파일 영역 복구 및 태그 정리
 // @namespace    http://tampermonkey.net/
-// @version      5.0
+// @version      6.1
 // @match        *://*/*
 // @grant        none
 // @run-at       document-idle
@@ -10,41 +10,51 @@
 (function() {
     'use strict';
 
-    const fix = () => {
-        // 1. 첨부파일 복구
-        document.querySelectorAll('.view_file_download').forEach(el => {
-            el.classList.remove('google-ads', 'ad-banner', 'adbox');
-            el.setAttribute('style',
-                'display:block!important;' +
-                'visibility:visible!important;' +
-                'opacity:1!important;' +
-                'height:auto!important;' +
-                'overflow:visible!important;'
-            );
-        });
+    const fixFile = (el) => {
+        el.classList.remove('google-ads', 'ad-banner', 'adbox');
+        el.setAttribute('style',
+            'display:block!important;visibility:visible!important;' +
+            'opacity:1!important;height:auto!important;'
+        );
+    };
 
-        // 2. 태그 두 번째 줄부터 숨김
-        document.querySelectorAll('.tags-item').forEach(container => {
-            let hiding = false;
-            Array.from(container.children).forEach(el => {
-                if (el.classList && el.classList.contains('tags-line')) {
-                    hiding = true;
-                }
-                if (hiding) {
-                    el.setAttribute('style', 'display:none!important;');
-                }
-            });
+    const fixTags = () => {
+        const tagDiv = document.querySelector('#tags_1 > div');
+        if (!tagDiv) return;
+        Array.from(tagDiv.children).forEach((el, i) => {
+            if (i >= 6) el.setAttribute('style', 'display:none!important;');
         });
     };
 
-    // 즉시 한 번 실행
-    fix();
+    const fixAll = () => {
+        document.querySelectorAll('.view_file_download').forEach(fixFile);
+        fixTags();
+    };
 
-    // 10초간 0.2초마다 계속 덮어쓰기 (사이트 스크립트가 언제 복원하든 우리가 이김)
-    let count = 0;
-    const timer = setInterval(() => {
-        fix();
-        if (++count >= 50) clearInterval(timer);
-    }, 200);
+    // 즉시 실행
+    fixAll();
+
+    // style 속성이 제거되거나 변경되면 즉시 재적용
+    const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            if (m.type === 'attributes') {
+                const el = m.target;
+                if (el.classList && el.classList.contains('view_file_download')) {
+                    fixFile(el);
+                }
+            }
+            if (m.type === 'childList') fixAll();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+    });
+
+    // 10초 후 옵저버 종료
+    setTimeout(() => observer.disconnect(), 10000);
 
 })();
