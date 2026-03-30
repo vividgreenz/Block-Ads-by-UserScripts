@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         첨부파일 영역 복구 + 태그 필터
 // @namespace    http://tampermonkey.net/
-// @version      1.6
-// @description  첨부파일 복구 및 특정 태그 글 숨김
+// @version      1.7
+// @description  첨부파일/링크 복구 및 특정 태그 글 숨김
 // @match        *://*/*
 // @grant        none
 // @run-at       document-idle
@@ -11,13 +11,16 @@
 (function() {
     'use strict';
 
-    // 첨부파일 복구
+    // 첨부파일 + 링크 복구
     const style = document.createElement('style');
-    style.textContent = '.view_file_download { display: block !important; visibility: visible !important; }';
+    style.textContent = `
+        .view_file_download { display: block !important; visibility: visible !important; }
+        .view_link_item { display: block !important; visibility: visible !important; }
+    `;
     document.head.appendChild(style);
 
-    document.querySelectorAll('.view_file_download').forEach(el => {
-        el.classList.remove('google-ads', 'ad-banner', 'adbox');
+    document.querySelectorAll('.view_file_download, .view_link_item').forEach(el => {
+        el.classList.remove('google-ads', 'ad-banner', 'adbox', 'adlink');
         el.style.setProperty('display', 'block', 'important');
         el.style.setProperty('visibility', 'visible', 'important');
     });
